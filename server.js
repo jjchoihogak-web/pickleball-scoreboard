@@ -41,6 +41,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 app.get('/overlay', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'overlay.html'));
 });
@@ -165,4 +174,19 @@ server.listen(PORT, () => {
   console.log(`Main interface: http://localhost:${PORT}`);
   console.log(`Overlay: http://localhost:${PORT}/overlay`);
   console.log(`Control panel: http://localhost:${PORT}/control`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Railway URL: ${process.env.RAILWAY_STATIC_URL || 'Not set'}`);
+});
+
+// Add error handling
+server.on('error', (err) => {
+  console.error('Server error:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
