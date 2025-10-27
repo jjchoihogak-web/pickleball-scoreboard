@@ -18,22 +18,26 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Game state
+// Game state - Pickleball Doubles Format
 let gameState = {
   team1: {
-    name: "Team 1",
+    name: "Team Apple",
     score: 0,
     sets: [0, 0, 0] // Best of 3 sets
   },
   team2: {
-    name: "Team 2", 
+    name: "Team Cherry", 
     score: 0,
     sets: [0, 0, 0]
   },
   currentSet: 1,
-  serving: 1, // 1 or 2
+  servingTeam: 1, // 1 or 2
+  serveNumber: 1, // 1 or 2 (first serve or second serve)
   gameStatus: "ready", // ready, playing, paused, finished
-  matchFormat: "best_of_3" // best_of_3, best_of_5
+  matchFormat: "best_of_3", // best_of_3, best_of_5
+  // Pickleball doubles specific
+  servingPlayer: "A", // A, B, C, D (representing players)
+  receivingPlayer: "C" // A, B, C, D
 };
 
 // Routes
@@ -87,14 +91,42 @@ app.post('/api/update-score', (req, res) => {
   res.json({ success: true, gameState });
 });
 
+// Pickleball doubles specific: Change serving
+app.post('/api/change-serving', (req, res) => {
+  // In Pickleball doubles, serving alternates between teams and players
+  if (gameState.serveNumber === 1) {
+    // First serve failed, second serve
+    gameState.serveNumber = 2;
+  } else {
+    // Second serve failed or point scored, switch teams
+    gameState.serveNumber = 1;
+    gameState.servingTeam = gameState.servingTeam === 1 ? 2 : 1;
+    
+    // Update serving and receiving players
+    if (gameState.servingTeam === 1) {
+      gameState.servingPlayer = gameState.servingPlayer === "A" ? "B" : "A";
+      gameState.receivingPlayer = gameState.receivingPlayer === "C" ? "D" : "C";
+    } else {
+      gameState.servingPlayer = gameState.servingPlayer === "C" ? "D" : "C";
+      gameState.receivingPlayer = gameState.receivingPlayer === "A" ? "B" : "A";
+    }
+  }
+  
+  io.emit('gameStateUpdate', gameState);
+  res.json({ success: true, gameState });
+});
+
 app.post('/api/reset-game', (req, res) => {
   gameState = {
-    team1: { name: "Team 1", score: 0, sets: [0, 0, 0] },
-    team2: { name: "Team 2", score: 0, sets: [0, 0, 0] },
+    team1: { name: "Team Apple", score: 0, sets: [0, 0, 0] },
+    team2: { name: "Team Cherry", score: 0, sets: [0, 0, 0] },
     currentSet: 1,
-    serving: 1,
+    servingTeam: 1,
+    serveNumber: 1,
     gameStatus: "ready",
-    matchFormat: "best_of_3"
+    matchFormat: "best_of_3",
+    servingPlayer: "A",
+    receivingPlayer: "C"
   };
   
   io.emit('gameStateUpdate', gameState);
@@ -111,11 +143,7 @@ app.post('/api/update-team-names', (req, res) => {
   res.json({ success: true, gameState });
 });
 
-app.post('/api/change-serving', (req, res) => {
-  gameState.serving = gameState.serving === 1 ? 2 : 1;
-  io.emit('gameStateUpdate', gameState);
-  res.json({ success: true, gameState });
-});
+// This endpoint is now handled above with Pickleball doubles logic
 
 function checkSetWin() {
   const { team1, team2, currentSet } = gameState;
@@ -134,6 +162,11 @@ function nextSet() {
   gameState.currentSet++;
   gameState.team1.score = 0;
   gameState.team2.score = 0;
+  
+  // Reset serving for new set
+  gameState.serveNumber = 1;
+  gameState.servingPlayer = "A";
+  gameState.receivingPlayer = "C";
   
   // Check for match win
   const team1Sets = gameState.team1.sets.reduce((a, b) => a + b, 0);
